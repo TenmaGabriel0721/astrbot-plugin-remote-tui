@@ -1,0 +1,136 @@
+{
+  "trigger": {
+    "type": "string",
+    "description": "触发指令",
+    "default": "/t",
+    "hint": "OneBot 文本指令入口，默认 /t"
+  },
+  "allow_all_users": {
+    "type": "bool",
+    "description": "允许所有用户使用",
+    "default": false,
+    "hint": "关闭时仅 AstrBot 管理员、extra_admin_ids 和 allowed_users 可用"
+  },
+  "allowed_users": {
+    "type": "list",
+    "description": "允许使用的用户 ID",
+    "default": [],
+    "hint": "留空时不额外放行普通用户"
+  },
+  "allowed_groups": {
+    "type": "list",
+    "description": "允许使用的群 ID",
+    "default": [],
+    "hint": "留空表示不限制群；私聊不受此项限制"
+  },
+  "extra_admin_ids": {
+    "type": "list",
+    "description": "插件额外管理员 ID",
+    "default": []
+  },
+  "default_cwd": {
+    "type": "string",
+    "description": "TUI 默认工作目录",
+    "default": "/root"
+  },
+  "allowed_cwds": {
+    "type": "list",
+    "description": "允许作为工作目录的路径前缀",
+    "default": ["/root"]
+  },
+  "tmux_path": {
+    "type": "string",
+    "description": "tmux 可执行文件（必要系统依赖）",
+    "default": "tmux"
+  },
+  "codex_command": {
+    "type": "string",
+    "description": "Codex 启动命令",
+    "default": "codex",
+    "hint": "仅允许可执行文件名为 codex 的命令"
+  },
+  "claude_command": {
+    "type": "string",
+    "description": "Claude Code 启动命令",
+    "default": "claude",
+    "hint": "仅允许可执行文件名为 claude 的命令"
+  },
+  "terminal_cols": {
+    "type": "int",
+    "description": "终端列数",
+    "default": 100
+  },
+  "terminal_rows": {
+    "type": "int",
+    "description": "终端行数",
+    "default": 30
+  },
+  "action_delay_ms": {
+    "type": "int",
+    "description": "操作后开始检测截图前的最小等待毫秒数",
+    "default": 350
+  },
+  "start_wait_timeout_seconds": {
+    "type": "float",
+    "description": "启动 Codex/Claude 后等待可交互画面的最长秒数",
+    "default": 10
+  },
+  "control_wait_timeout_seconds": {
+    "type": "float",
+    "description": "方向键、Enter、Esc 等控制操作后等待可交互画面的最长秒数",
+    "default": 8
+  },
+  "submit_wait_timeout_seconds": {
+    "type": "float",
+    "description": "发送文本后等待任务结束或确认菜单出现的最长秒数",
+    "default": 120
+  },
+  "wait_stable_ms": {
+    "type": "int",
+    "description": "画面连续稳定多久后才认为可截图",
+    "default": 1200
+  },
+  "wait_poll_interval_ms": {
+    "type": "int",
+    "description": "等待期间轮询 tmux 截图的间隔毫秒数",
+    "default": 500
+  },
+  "submit_delay_ms": {
+    "type": "int",
+    "description": "粘贴文本后等待多久再发送 Enter",
+    "default": 200,
+    "hint": "Codex/Claude 的 TUI 输入框需要一点时间处理 paste；过低可能导致 /resume 只被输入但不提交"
+  },
+  "idle_timeout_minutes": {
+    "type": "int",
+    "description": "空闲会话自动停止时间，0 表示不自动停止",
+    "default": 60
+  },
+  "cache_retention_minutes": {
+    "type": "int",
+    "description": "截图缓存保留时间",
+    "default": 30
+  },
+  "font_path": {
+    "type": "string",
+    "description": "渲染字体路径",
+    "default": "",
+    "hint": "主终端字体，建议使用英文等宽字体；留空时自动搜索"
+  },
+  "cjk_font_path": {
+    "type": "string",
+    "description": "中文 fallback 字体路径",
+    "default": "",
+    "hint": "中文内容和底部菜单使用；留空时自动搜索 Noto CJK / 文泉驿"
+  },
+  "font_size": {
+    "type": "int",
+    "description": "终端字体大小",
+    "default": 18
+  },
+  "kill_sessions_on_unload": {
+    "type": "bool",
+    "description": "插件卸载或禁用时停止 tmux 会话",
+    "default": false
+  }
+}
