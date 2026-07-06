@@ -128,6 +128,58 @@
     "description": "终端字体大小",
     "default": 18
   },
+  "file_send_enabled": {
+    "type": "bool",
+    "description": "启用文件发送接口",
+    "default": true,
+    "hint": "启用后 Codex/Claude 会话内可执行 qqsend <文件或目录>，也可直接使用 /t send <路径>"
+  },
+  "file_send_allowed_roots": {
+    "type": "list",
+    "description": "允许发送文件的路径前缀",
+    "default": ["/root"],
+    "hint": "只允许发送这些目录下的文件或目录"
+  },
+  "file_send_denied_names": {
+    "type": "list",
+    "description": "禁止发送的目录名或文件名",
+    "default": [".ssh", ".git", ".config", ".cache", "__pycache__", "node_modules", ".venv", "venv", "env"]
+  },
+  "file_send_denied_keywords": {
+    "type": "list",
+    "description": "文件名安全黑名单关键词",
+    "default": [".env", "token", "secret", "credential", "passwd", "password", "apikey", "api_key"]
+  },
+  "file_send_image_extensions": {
+    "type": "list",
+    "description": "按图片消息发送的扩展名",
+    "default": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]
+  },
+  "file_send_max_items": {
+    "type": "int",
+    "description": "一次最多发送的路径数量",
+    "default": 10
+  },
+  "file_send_max_file_size_mb": {
+    "type": "int",
+    "description": "单文件最大大小 MB",
+    "default": 50
+  },
+  "file_send_max_archive_size_mb": {
+    "type": "int",
+    "description": "目录打包最大内容大小 MB",
+    "default": 100
+  },
+  "file_send_max_archive_files": {
+    "type": "int",
+    "description": "目录打包最多包含文件数",
+    "default": 500
+  },
+  "file_send_append_hint": {
+    "type": "bool",
+    "description": "遇到发送文件意图时给 Codex/Claude 附加 qqsend 使用提示",
+    "default": true
+  },
   "kill_sessions_on_unload": {
     "type": "bool",
     "description": "插件卸载或禁用时停止 tmux 会话",

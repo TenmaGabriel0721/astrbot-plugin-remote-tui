@@ -4,12 +4,14 @@ import asyncio
 import shutil
 import time
 from pathlib import Path
+from typing import Any
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 from astrbot.core.star.filter.custom_filter import CustomFilter
 
+from .core.file_sender import FileSendError, FileSender
 from .core.keymap import parse_payload
 from .core.menu import MenuContext, build_error_lines, build_footer
 from .core.permissions import PermissionChecker
@@ -57,7 +59,7 @@ class RemoteTuiCommandFilter(CustomFilter):
         return False
 
 
-@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.1.0")
+@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.2.0")
 class RemoteTuiPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -79,6 +81,7 @@ class RemoteTuiPlugin(Star):
         self.tmux_path = str(self.config.get("tmux_path", "tmux") or "tmux")
         self.backend = TmuxBackend(self.tmux_path)
         self.sessions = SessionManager(self.config, self.data_dir, self.backend)
+        self.file_sender = FileSender(self.config, self.data_dir, self.sessions.cwd)
         self.renderer = TerminalRenderer(
             self.cache_dir,
             font_path=str(self.config.get("font_path", "") or ""),
@@ -113,17 +116,26 @@ class RemoteTuiPlugin(Star):
 
         async with lock:
             try:
-                image_path = await self._handle(event, user_key, payload)
+                result = await self._handle(event, user_key, payload)
+            except FileSendError as exc:
+                result = self._render_error("文件发送失败", str(exc))
             except Exception as exc:
                 logger.exception("Remote TUI 处理失败: %s", exc)
-                image_path = self._render_error("Remote TUI 处理失败", str(exc))
+                result = self._render_error("Remote TUI 处理失败", str(exc))
 
-        yield event.image_result(str(image_path)).stop_event()
+        if isinstance(result, Path):
+            yield event.image_result(str(result)).stop_event()
+        else:
+            yield event.chain_result(result).stop_event()
 
-    async def _handle(self, event: AstrMessageEvent, user_key: str, payload: str) -> Path:
+    async def _handle(self, event: AstrMessageEvent, user_key: str, payload: str) -> Path | list[Any]:
         permission = self.permission.check_event(event)
         if not permission.allowed:
             return self._render_error("权限不足", permission.reason)
+
+        direct_targets = self.file_sender.extract_direct_targets(payload)
+        if direct_targets:
+            return self._build_file_response(direct_targets)
 
         action = parse_payload(payload)
 
@@ -136,11 +148,17 @@ class RemoteTuiPlugin(Star):
         if action.kind == "start":
             info = await self.sessions.start_or_switch(user_key, action.value)
             result = await self._wait_for_screen(info, self.start_wait_timeout, min_wait=self.action_delay)
+            pending = self._pending_file_response(info)
+            if pending:
+                return pending
             return self._render_screen(info, result.text, self._status_from_wait(result))
 
         if action.kind == "key":
             info = await self.sessions.send_key(user_key, action.value)
             result = await self._wait_for_screen(info, self.control_wait_timeout, min_wait=self.action_delay)
+            pending = self._pending_file_response(info)
+            if pending:
+                return pending
             return self._render_screen(info, result.text, self._status_from_wait(result))
 
         if action.kind == "text":
@@ -148,9 +166,10 @@ class RemoteTuiPlugin(Star):
                 return await self._render_capture(user_key)
             info = await self.sessions.require_current(user_key)
             baseline = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
+            text_to_send = self.file_sender.with_usage_hint(action.value)
             await self.backend.send_text(
                 info.session_name,
-                action.value,
+                text_to_send,
                 submit=True,
                 submit_delay_seconds=self.submit_delay,
             )
@@ -162,6 +181,9 @@ class RemoteTuiPlugin(Star):
                 initial_text=baseline,
                 require_change=True,
             )
+            pending = self._pending_file_response(info)
+            if pending:
+                return pending
             return self._render_screen(info, result.text, self._status_from_wait(result))
 
         if action.kind == "stop":
@@ -179,7 +201,7 @@ class RemoteTuiPlugin(Star):
 
         return await self._render_capture(user_key)
 
-    async def _render_capture(self, user_key: str, info: SessionInfo | None = None) -> Path:
+    async def _render_capture(self, user_key: str, info: SessionInfo | None = None) -> Path | list[Any]:
         if info is None:
             info, ansi_text = await self.sessions.capture_current(user_key)
         else:
@@ -203,6 +225,10 @@ class RemoteTuiPlugin(Star):
                 f"{self._app_display(info.app)} 会话已退出",
                 f"使用 {TRIGGER} {info.app} 重新启动。",
             )
+
+        pending = self._pending_file_response(info)
+        if pending:
+            return pending
 
         return self._render_screen(info, ansi_text, "运行中")
 
@@ -254,11 +280,22 @@ class RemoteTuiPlugin(Star):
             prefix="remote_tui_error",
         )
 
+    def _build_file_response(self, targets: list[str]) -> list[Any]:
+        prepared = self.file_sender.prepare(targets)
+        return prepared.components
+
+    def _pending_file_response(self, info: SessionInfo) -> list[Any] | None:
+        targets = self.file_sender.consume_session_requests(info.session_name, info.user_key, info.app)
+        if not targets:
+            return None
+        return self._build_file_response(targets)
+
     async def _cleanup_loop(self) -> None:
         while True:
             try:
                 await asyncio.sleep(60)
                 self._cleanup_cache()
+                self.file_sender.cleanup_outgoing(self.cache_retention_minutes)
                 await self.sessions.cleanup_idle(self.idle_timeout_minutes)
             except asyncio.CancelledError:
                 raise

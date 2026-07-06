@@ -27,6 +27,8 @@ class SessionManager:
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.data_dir / "state.json"
+        self.tool_dir = self.data_dir / "bin"
+        self.queue_dir = self.data_dir / "send_queue"
         self.backend = backend
         self.session_prefix = "astrbot_tui"
         self.cols = max(40, min(220, int(config.get("terminal_cols", 100) or 100)))
@@ -61,6 +63,13 @@ class SessionManager:
             self.cwd,
             self.cols,
             self.rows,
+            extra_path_dirs=[self.tool_dir],
+            extra_env={
+                "REMOTE_TUI_QUEUE_DIR": str(self.queue_dir),
+                "REMOTE_TUI_USER_KEY": user_key,
+                "REMOTE_TUI_SESSION_NAME": session_name,
+                "REMOTE_TUI_APP": app,
+            },
         )
         self._set_active(user_key, app)
         return SessionInfo(user_key, app, session_name, True)

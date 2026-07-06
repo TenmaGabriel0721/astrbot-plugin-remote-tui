@@ -24,7 +24,34 @@ Python 依赖由 AstrBot 读取 `requirements.txt` 安装：
 - `/t claude`：启动或切换 Claude Code
 - `/t 内容`：发送内容并自动回车
 - `/t up`、`/t down`、`/t enter`、`/t esc`：控制 TUI 菜单
+- `/t send /root/a.png`：直接发送本机文件或目录
+- `/t 把 /root/a.png 发出来`：直接发送本机文件或目录
 - `/t left`、`/t right`、`/t tab`、`/t pgup`、`/t pgdn`、`/t ctrlc`、`/t stop`：高级控制
+
+## 文件发送
+
+插件会给 Codex / Claude Code 的 tmux 会话注入 `qqsend` 命令：
+
+```bash
+qqsend /root/a.png
+qqsend ./dist/result.zip
+qqsend ./output
+```
+
+- 图片扩展名默认按图片消息发送
+- 普通文件按文件消息发送
+- 目录会自动打包成 zip 后发送
+- `/t send <路径>` 和 `/t 把 <路径> 发出来` 不经过 TUI，直接发送
+- 如果普通 TUI 请求里包含“发出来/发送”等意图，插件会给 Codex/Claude 附加 `qqsend` 用法提示
+- Codex/Claude 执行 `qqsend` 后，插件会在本次回复或下次 `/t` 刷新时发送文件
+
+安全限制：
+
+- 默认只允许发送 `/root` 下的文件
+- 默认禁止 `.ssh`、`.git`、`.env`、token、secret 等敏感路径
+- 默认单文件最大 50MB
+- 默认目录打包最大 100MB
+- 默认一次最多发送 10 个路径
 
 ## 截图等待
 

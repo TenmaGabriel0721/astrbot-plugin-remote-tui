@@ -1,7 +1,7 @@
 name: astrbot_plugin_remote_tui
 display_name: Remote TUI
-desc: 通过 OneBot 文本指令远程控制 Codex / Claude Code TUI，会话画面以图片返回；需要系统安装 tmux
-help: 使用 /t、/t codex、/t claude、/t 内容、/t up、/t down、/t enter、/t esc
-version: v0.1.0
+desc: 通过 OneBot 文本指令远程控制 Codex / Claude Code TUI，会话画面以图片返回，并支持发送本机文件
+help: 使用 /t、/t codex、/t claude、/t 内容、/t up、/t down、/t enter、/t esc、/t send <路径>
+version: v0.2.0
 author: TenmaGabriel0721
-repo: ""
+repo: "https://github.com/TenmaGabriel0721/astrbot-plugin-remote-tui"

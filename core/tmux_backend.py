@@ -41,12 +41,14 @@ class TmuxBackend:
         cwd: Path,
         cols: int,
         rows: int,
+        extra_path_dirs: list[Path] | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> bool:
         if await self.has_session(session_name):
             await self.resize(session_name, cols, rows)
             return False
 
-        shell_command = self._build_shell_command(app, command, cwd)
+        shell_command = self._build_shell_command(app, command, cwd, extra_path_dirs or [], extra_env or {})
         args = [
             "new-session",
             "-d",
@@ -153,10 +155,18 @@ class TmuxBackend:
             stderr.decode("utf-8", errors="replace"),
         )
 
-    def _build_shell_command(self, app: str, command: str, cwd: Path) -> str:
+    def _build_shell_command(
+        self,
+        app: str,
+        command: str,
+        cwd: Path,
+        extra_path_dirs: list[Path],
+        extra_env: dict[str, str],
+    ) -> str:
         parts = self._validate_command(app, command)
         executable = parts[0]
         path_prefixes = []
+        path_prefixes.extend(str(path) for path in extra_path_dirs if str(path))
         executable_dir = str(Path(executable).parent) if "/" in executable else ""
         if executable_dir and executable_dir != ".":
             path_prefixes.append(executable_dir)
@@ -179,6 +189,12 @@ class TmuxBackend:
                     unique.append(path)
             path_export = f"PATH={shlex.quote(':'.join(unique))}:$PATH; export PATH; "
 
+        env_export = ""
+        for key, value in extra_env.items():
+            if not key.replace("_", "").isalnum() or key[0].isdigit():
+                continue
+            env_export += f"{key}={shlex.quote(str(value))}; export {key}; "
+
         command_text = shlex.join(parts)
         app_label = "Codex" if app == "codex" else "Claude"
         return (
@@ -186,6 +202,7 @@ class TmuxBackend:
             + shlex.quote(
                 f"cd -- {shlex.quote(str(cwd))} || exit 127; "
                 f"{path_export}"
+                f"{env_export}"
                 f"{command_text}; "
                 "status=$?; "
                 f"printf '\\n[Remote TUI] {app_label} exited with status %s\\n' \"$status\"; "
