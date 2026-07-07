@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.5.0 - 2026-07-07
+
+### Added
+
+- Added `remote_tui_run` LLM tool so AstrBot can delegate tasks to Codex / Claude Code through Remote TUI.
+- Added LLM tool configuration:
+  - `llm_tool_enabled`
+  - `llm_tool_default_app`
+  - `llm_tool_max_result_chars`
+- Added optional permission-request auto confirmation for Codex/Claude operation prompts:
+  - `auto_confirm_permissions`
+  - `auto_confirm_max_per_turn`
+  - `auto_confirm_delay_ms`
+
+### Changed
+
+- Interactive screen detection now separates permission prompts from selection menus.
+- `/model`, `/resume`, model selection, and session selection menus are excluded from auto confirmation.
+- Plugin metadata version updated to `v0.5.0`.
+
 ## v0.4.3 - 2026-07-07
 
 ### Changed

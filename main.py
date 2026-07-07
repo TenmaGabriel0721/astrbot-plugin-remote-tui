@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from astrbot.api import logger
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star, register
 from astrbot.core.star.filter.custom_filter import CustomFilter
 
@@ -19,7 +19,7 @@ from .core.permissions import PermissionChecker
 from .core.renderer import TerminalRenderer
 from .core.session_manager import SessionInfo, SessionManager
 from .core.tmux_backend import TmuxBackend
-from .core.waiter import CaptureWaiter, WaitResult
+from .core.waiter import CaptureWaiter, WaitResult, classify_interactive, strip_ansi
 
 
 PLUGIN_NAME = "astrbot_plugin_remote_tui"
@@ -60,7 +60,7 @@ class RemoteTuiCommandFilter(CustomFilter):
         return False
 
 
-@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.4.3")
+@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.5.0")
 class RemoteTuiPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -97,6 +97,15 @@ class RemoteTuiPlugin(Star):
         self.wait_stable_seconds = max(0.2, float(self.config.get("wait_stable_ms", 1200) or 1200) / 1000)
         self.wait_poll_interval = max(0.1, float(self.config.get("wait_poll_interval_ms", 500) or 500) / 1000)
         self.submit_delay = max(0.0, min(1.0, float(self.config.get("submit_delay_ms", 200) or 200) / 1000))
+        self.auto_confirm_permissions = bool(self.config.get("auto_confirm_permissions", False))
+        self.auto_confirm_max = max(0, int(self.config.get("auto_confirm_max_per_turn", 3) or 3))
+        self.auto_confirm_delay = max(
+            0.0,
+            min(2.0, float(self.config.get("auto_confirm_delay_ms", 200) or 200) / 1000),
+        )
+        self.llm_tool_enabled = bool(self.config.get("llm_tool_enabled", True))
+        self.llm_tool_default_app = self._normalize_app(str(self.config.get("llm_tool_default_app", "codex") or "codex"))
+        self.llm_tool_max_result_chars = max(1000, int(self.config.get("llm_tool_max_result_chars", 6000) or 6000))
         self.waiter = CaptureWaiter(self.backend, self.sessions.cols, self.sessions.rows)
         self.cache_retention_minutes = max(1, int(self.config.get("cache_retention_minutes", 30) or 30))
         self.idle_timeout_minutes = max(0, int(self.config.get("idle_timeout_minutes", 60) or 60))
@@ -131,6 +140,69 @@ class RemoteTuiPlugin(Star):
             yield event.image_result(str(result)).stop_event()
         else:
             yield event.chain_result(result).stop_event()
+
+    @filter.llm_tool("remote_tui_run")
+    async def remote_tui_run(self, event: AstrMessageEvent, prompt: str, app: str = "current"):
+        """
+        通过 Remote TUI 把任务交给 Codex 或 Claude Code 终端会话执行，并返回终端文本结果。
+
+        适用场景：用户希望你调用 Codex/Claude Code 查看项目、修改代码、生成文件、运行命令、处理本机文件，或需要使用已有 Remote TUI 会话完成开发任务。
+        不适用场景：普通闲聊、无需访问本机项目或文件的简单问答。
+
+        Args:
+            prompt(string): 要发送给 Codex/Claude Code 的完整自然语言任务说明。
+            app(string): 使用哪个 TUI，会话可选值为 current、codex、claude。current 表示优先使用当前会话，没有当前会话时使用默认配置。
+        """
+        if not self.llm_tool_enabled:
+            return "Remote TUI LLM 工具未启用。"
+
+        event = self._resolve_llm_tool_event(event)
+        if event is None:
+            return "无法从工具上下文识别消息事件。"
+
+        task = str(prompt or "").strip()
+        if not task:
+            return "prompt 不能为空。"
+
+        permission = self.permission.check_event(event)
+        if not permission.allowed:
+            return f"权限不足：{permission.reason}"
+
+        if not await self.backend.available():
+            return "tmux 不可用，请安装 tmux 并确认 AstrBot 运行环境可以执行 tmux。"
+
+        user_key = self.sessions.user_key_from_event(event)
+        lock = self._locks.setdefault(user_key, asyncio.Lock())
+        async with lock:
+            try:
+                info = await self._resolve_tool_session(user_key, app)
+                baseline = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
+                state = classify_interactive(baseline)
+                if state.kind in {"menu", "permission"}:
+                    return (
+                        f"{self._app_display(info.app)} 当前处于{state.reason or '交互菜单'}，"
+                        f"请先用 {TRIGGER} 刷新查看，并用 {TRIGGER} up/down/enter/esc 处理后再调用工具。"
+                    )
+                text_to_send = self.file_sender.with_usage_hint(task)
+                await self.backend.send_text(
+                    info.session_name,
+                    text_to_send,
+                    submit=True,
+                    submit_delay_seconds=self.submit_delay,
+                )
+                self.sessions.touch(user_key, info.app)
+                result = await self._wait_for_screen(
+                    info,
+                    self.submit_wait_timeout,
+                    min_wait=max(self.action_delay, 1.0),
+                    initial_text=baseline,
+                    require_change=True,
+                )
+                files_sent = await self._send_pending_files(event, info)
+                return self._build_tool_result(info, result, files_sent)
+            except Exception as exc:
+                logger.exception("Remote TUI LLM 工具执行失败: %s", exc)
+                return f"Remote TUI LLM 工具执行失败：{exc}"
 
     async def _handle(self, event: AstrMessageEvent, user_key: str, payload: str) -> Path | list[Any]:
         permission = self.permission.check_event(event)
@@ -265,6 +337,68 @@ class RemoteTuiPlugin(Star):
 
         return self._render_screen(info, ansi_text, "运行中")
 
+    async def _resolve_tool_session(self, user_key: str, app: str) -> SessionInfo:
+        requested = self._normalize_app(app)
+        if requested in {"", "current"}:
+            current = await self.sessions.current(user_key)
+            if current is not None and current.running:
+                return current
+            requested = self.llm_tool_default_app or "codex"
+
+        if requested not in {"codex", "claude"}:
+            raise ValueError("app 只允许为 current、codex 或 claude")
+
+        session_name = self.sessions.session_name(user_key, requested)
+        was_running = await self.backend.has_session(session_name)
+        info = await self.sessions.start_or_switch(user_key, requested)
+        if not was_running:
+            await self._wait_for_screen(info, self.start_wait_timeout, min_wait=self.action_delay)
+        return info
+
+    async def _send_pending_files(self, event: AstrMessageEvent, info: SessionInfo) -> tuple[int, str]:
+        try:
+            components = self._pending_file_response(info)
+        except FileSendError as exc:
+            logger.warning("Remote TUI LLM 工具发送 pending 文件失败: %s", exc)
+            return 0, str(exc)
+        if not components:
+            return 0, ""
+        await event.send(MessageChain(components))
+        return len(components), ""
+
+    def _build_tool_result(
+        self,
+        info: SessionInfo,
+        result: WaitResult,
+        pending_files: tuple[int, str],
+    ) -> str:
+        status = self._status_from_wait(result)
+        file_count, file_error = pending_files
+        lines = [f"{self._app_display(info.app)} 状态：{status}"]
+        if file_count:
+            lines.append(f"已通过 QQ 发送 {file_count} 个文件/图片。")
+        if file_error:
+            lines.append(f"文件发送失败：{file_error}")
+
+        terminal_text = self._terminal_text_for_tool(result.text)
+        if terminal_text:
+            lines.append("")
+            lines.append("终端输出：")
+            lines.append(terminal_text)
+        return "\n".join(lines)
+
+    def _terminal_text_for_tool(self, ansi_text: str) -> str:
+        text = strip_ansi(ansi_text).replace("\r", "")
+        lines = [line.rstrip() for line in text.splitlines()]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        text = "\n".join(lines)
+        if len(text) <= self.llm_tool_max_result_chars:
+            return text
+        return f"...<已截断，保留末尾 {self.llm_tool_max_result_chars} 字符>\n{text[-self.llm_tool_max_result_chars:]}"
+
     async def _wait_for_screen(
         self,
         info: SessionInfo,
@@ -281,6 +415,9 @@ class RemoteTuiPlugin(Star):
             min_wait_seconds=min_wait,
             initial_text=initial_text,
             require_change=require_change,
+            auto_confirm_permissions=self.auto_confirm_permissions,
+            auto_confirm_max=self.auto_confirm_max,
+            auto_confirm_delay_seconds=self.auto_confirm_delay,
         )
 
     def _render_screen(self, info: SessionInfo, ansi_text: str, status: str) -> Path:
@@ -303,8 +440,12 @@ class RemoteTuiPlugin(Star):
     @staticmethod
     def _status_from_wait(result: WaitResult) -> str:
         if result.timed_out:
-            return f"{result.reason}，可稍后 /t 刷新"
-        return result.reason or "就绪"
+            status = f"{result.reason}，可稍后 /t 刷新"
+        else:
+            status = result.reason or "就绪"
+        if result.auto_confirmed:
+            status = f"{status}，已自动确认权限 {result.auto_confirmed} 次"
+        return status
 
     def _render_error(self, title: str, detail: str = "") -> Path:
         return self.renderer.render_message(
@@ -312,6 +453,42 @@ class RemoteTuiPlugin(Star):
             cols=self.sessions.cols,
             prefix="remote_tui_error",
         )
+
+    @staticmethod
+    def _normalize_app(value: str) -> str:
+        text = str(value or "").strip().lower().replace("_", "-").replace(" ", "-")
+        aliases = {
+            "": "current",
+            "auto": "current",
+            "default": "current",
+            "current": "current",
+            "codex": "codex",
+            "claude": "claude",
+            "claude-code": "claude",
+            "claudecode": "claude",
+        }
+        return aliases.get(text, text)
+
+    @staticmethod
+    def _resolve_llm_tool_event(value):
+        candidates = [value]
+        seen = set()
+        while candidates:
+            candidate = candidates.pop(0)
+            if candidate is None:
+                continue
+            marker = id(candidate)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            if callable(getattr(candidate, "get_platform_name", None)) and callable(
+                getattr(candidate, "get_sender_id", None)
+            ):
+                return candidate
+            inner_context = getattr(candidate, "context", None)
+            candidates.append(getattr(inner_context, "event", None))
+            candidates.append(getattr(candidate, "event", None))
+        return None
 
     def _build_file_response(self, targets: list[str]) -> list[Any]:
         prepared = self.file_sender.prepare(targets)

@@ -73,7 +73,7 @@ Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。
 - `/t codex`：启动或切换 Codex
 - `/t claude`：启动或切换 Claude Code
 - `/t 内容`：发送内容并自动回车
-- `图片 + /t 内容`：缓存 QQ 图片，并把本机图片路径发给当前 Codex/Claude
+- `图片 + /t 内容`：读取 QQ 图片，并把公网 URL 或本机完整路径发给当前 Codex/Claude
 - `/t up`、`/t down`、`/t enter`、`/t esc`：控制 TUI 菜单
 - `/t send /root/a.png`：直接发送本机文件或目录
 - `/t 把 /root/a.png 发出来`：直接发送本机文件或目录
@@ -141,6 +141,30 @@ qqsend ./output
 - 默认目录打包最大 100MB
 - 默认一次最多发送 10 个路径
 
+## LLM 工具
+
+插件会注册 LLM 工具 `remote_tui_run`，让 AstrBot 的主 LLM 可以把开发任务委派给 Codex / Claude Code TUI。
+
+工具参数：
+
+- `prompt`：发送给 Codex/Claude Code 的完整任务说明
+- `app`：`current`、`codex` 或 `claude`，默认 `current`
+
+行为：
+
+- `current` 会优先使用当前用户的活动 TUI 会话
+- 没有活动会话时，按 `llm_tool_default_app` 启动默认 TUI
+- 工具返回终端纯文本结果给主 LLM，不发送截图
+- 如果当前 TUI 停在 `/model`、`/resume` 或其他菜单，工具不会把任务粘进去，会要求先手动处理菜单
+- 如果 Codex/Claude 在会话里执行 `qqsend <路径>`，工具会尝试直接把文件发回当前 QQ 会话
+- 工具仍会检查本插件权限，默认只允许管理员或配置放行的用户实际执行
+
+相关配置：
+
+- `llm_tool_enabled`：启用 LLM 工具，默认开启
+- `llm_tool_default_app`：无当前会话时默认使用 `codex` 或 `claude`
+- `llm_tool_max_result_chars`：返回给主 LLM 的终端文本最大长度，默认 6000
+
 ## 常见问题
 
 ### 启动后立即退出
@@ -179,6 +203,16 @@ qqsend ./output
 - 画面需要连续稳定一小段时间，避免截到半刷新状态
 - 超过 `submit_wait_timeout_seconds` 后返回当前进度图，可继续 `/t` 刷新
 
+### 自动确认权限请求
+
+如果不想频繁发送 `/t enter`，可以开启：
+
+```text
+auto_confirm_permissions = true
+```
+
+开启后，插件只会在识别到 Codex / Claude 的操作权限请求时自动按 Enter，例如运行命令、调用工具、写入或修改文件。`/model`、`/resume`、模型选择、历史会话选择、搜索/筛选列表等菜单不会自动确认，仍会截图返回给你手动选择。
+
 相关配置：
 
 - `submit_wait_timeout_seconds`：发送文本后的最长等待时间，默认 120 秒
@@ -186,3 +220,6 @@ qqsend ./output
 - `wait_stable_ms`：画面稳定判定时间，默认 1200 毫秒
 - `wait_poll_interval_ms`：轮询间隔，默认 500 毫秒
 - `submit_delay_ms`：粘贴文本后到发送 Enter 的延迟，默认 200 毫秒
+- `auto_confirm_permissions`：自动确认操作权限请求，默认关闭
+- `auto_confirm_max_per_turn`：单次 `/t` 操作最多自动确认权限次数，默认 3
+- `auto_confirm_delay_ms`：自动确认后继续轮询前的等待时间，默认 200 毫秒

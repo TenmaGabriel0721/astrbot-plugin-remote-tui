@@ -101,6 +101,22 @@
     "default": 200,
     "hint": "Codex/Claude 的 TUI 输入框需要一点时间处理 paste；过低可能导致 /resume 只被输入但不提交"
   },
+  "auto_confirm_permissions": {
+    "type": "bool",
+    "description": "自动确认 Codex/Claude 操作权限请求",
+    "default": false,
+    "hint": "仅在识别到运行命令、调用工具、写入修改文件等权限请求时自动按 Enter；/model、/resume 等选择菜单不会自动确认"
+  },
+  "auto_confirm_max_per_turn": {
+    "type": "int",
+    "description": "单次 /t 操作最多自动确认权限次数",
+    "default": 3
+  },
+  "auto_confirm_delay_ms": {
+    "type": "int",
+    "description": "自动确认后继续轮询前的等待毫秒数",
+    "default": 200
+  },
   "idle_timeout_minutes": {
     "type": "int",
     "description": "空闲会话自动停止时间，0 表示不自动停止",
@@ -185,6 +201,23 @@
     "description": "同时把 qqsend 安装到 ~/.local/bin",
     "default": true,
     "hint": "用于兼容已经启动的旧 tmux 会话；如果已有同名非 Remote TUI 脚本则不会覆盖"
+  },
+  "llm_tool_enabled": {
+    "type": "bool",
+    "description": "启用 Remote TUI LLM 工具",
+    "default": true,
+    "hint": "启用后 Bot 可调用 remote_tui_run 工具把任务交给 Codex/Claude Code；仍会检查本插件权限"
+  },
+  "llm_tool_default_app": {
+    "type": "string",
+    "description": "LLM 工具无当前会话时默认使用的 TUI",
+    "default": "codex",
+    "hint": "可填 codex 或 claude"
+  },
+  "llm_tool_max_result_chars": {
+    "type": "int",
+    "description": "LLM 工具返回给 Bot 的终端文本最大字符数",
+    "default": 6000
   },
   "image_input_enabled": {
     "type": "bool",
