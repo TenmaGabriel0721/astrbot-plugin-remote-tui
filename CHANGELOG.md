@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.2 - 2026-07-07
+
+### Added
+
+- Added `image_input_prefer_url`.
+
+### Changed
+
+- Image input now prefers `http/https` URLs from OneBot image components.
+- Images without a usable URL still fall back to local cache paths.
+- Prompt output remains simple: original message plus one image URL or absolute path per line.
+
 ## v0.4.1 - 2026-07-07
 
 ### Changed

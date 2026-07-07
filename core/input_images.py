@@ -24,9 +24,10 @@ IMAGE_EXTENSION_BY_FORMAT = {
 
 @dataclass(frozen=True)
 class CachedInputImage:
-    path: Path
-    format: str
-    size_bytes: int
+    value: str
+    kind: str
+    format: str = ""
+    size_bytes: int = 0
 
 
 class InputImageError(RuntimeError):
@@ -37,6 +38,7 @@ class InputImageCache:
     def __init__(self, config: dict, data_dir: Path):
         self.enabled = bool(config.get("image_input_enabled", True))
         self.include_replies = bool(config.get("image_input_include_replies", True))
+        self.prefer_url = bool(config.get("image_input_prefer_url", True))
         self.max_images = max(1, int(config.get("image_input_max_images", 4) or 4))
         self.max_file_size = max(1, int(config.get("image_input_max_file_size_mb", 20) or 20)) * 1024 * 1024
         self.upload_dir = (Path(data_dir) / "uploads").expanduser().resolve(strict=False)
@@ -51,6 +53,11 @@ class InputImageCache:
         errors: list[str] = []
         for image in images:
             try:
+                if self.prefer_url:
+                    public_url = self._public_url(image)
+                    if public_url:
+                        cached.append(CachedInputImage(value=public_url, kind="url"))
+                        continue
                 cached.append(await self._cache_image(image))
             except Exception as exc:
                 errors.append(str(exc))
@@ -65,7 +72,7 @@ class InputImageCache:
         if not images:
             return text
 
-        paths = [str(image.path.expanduser().resolve(strict=False)) for image in images]
+        paths = [image.value for image in images]
         result = text.strip()
         if result:
             return f"{result}\n{chr(10).join(paths)}"
@@ -114,7 +121,20 @@ class InputImageCache:
         extension = IMAGE_EXTENSION_BY_FORMAT.get(image_format, source.suffix.lower() or ".img")
         target = self.upload_dir / f"input_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}{extension}"
         shutil.copy2(source, target)
-        return CachedInputImage(path=target.resolve(strict=False), format=image_format, size_bytes=size)
+        return CachedInputImage(
+            value=str(target.resolve(strict=False)),
+            kind="path",
+            format=image_format,
+            size_bytes=size,
+        )
+
+    @staticmethod
+    def _public_url(image: Comp.Image) -> str:
+        for attr in ("url", "file"):
+            value = str(getattr(image, attr, "") or "").strip()
+            if value.startswith(("http://", "https://")):
+                return value
+        return ""
 
     @staticmethod
     def _detect_format(path: Path) -> str:

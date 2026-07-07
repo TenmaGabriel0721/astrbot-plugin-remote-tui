@@ -188,14 +188,20 @@
   },
   "image_input_enabled": {
     "type": "bool",
-    "description": "启用 QQ 图片输入缓存",
+    "description": "启用 QQ 图片输入",
     "default": true,
-    "hint": "启用后 /t 内容 携带图片时，插件会先缓存图片并把本机路径发给 Codex/Claude"
+    "hint": "启用后 /t 内容 携带图片时，插件会把图片 URL 或本机路径发给 Codex/Claude"
   },
   "image_input_include_replies": {
     "type": "bool",
     "description": "读取引用消息中的图片",
     "default": true
+  },
+  "image_input_prefer_url": {
+    "type": "bool",
+    "description": "优先使用图片公网 URL",
+    "default": true,
+    "hint": "图片组件里有 http/https 链接时直接传 URL；没有时才下载缓存为本机完整路径"
   },
   "image_input_max_images": {
     "type": "int",

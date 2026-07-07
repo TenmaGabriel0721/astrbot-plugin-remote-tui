@@ -81,7 +81,7 @@ Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。
 
 ## 图片输入
 
-插件支持把 QQ 消息里的图片临时缓存到服务器本机，再把图片路径追加到发给 Codex / Claude Code 的内容里。
+插件支持读取 QQ 消息里的图片，并把图片 URL 或本机路径追加到发给 Codex / Claude Code 的内容里。
 
 用法：
 
@@ -91,7 +91,14 @@ Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。
 发送图片，并附带：/t
 ```
 
-插件发给 TUI 的内容就是原消息加本机图片完整绝对路径：
+插件发给 TUI 的内容就是原消息加图片地址。默认优先使用 OneBot 图片里的 `http/https` 链接；没有可用链接时，才下载缓存成本机完整绝对路径：
+
+```text
+分析这张图
+https://example.com/qq-image.jpg
+```
+
+或：
 
 ```text
 分析这张图
@@ -100,12 +107,13 @@ Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。
 
 说明：
 
-- 这不是 OneBot 按钮或原生图片附件，而是本机文件路径
-- Codex/Claude 需要能读取该路径
+- 这不是 OneBot 按钮或原生图片附件，而是图片 URL 或本机文件路径
+- Codex/Claude 需要能访问该 URL 或读取该路径
 - 默认读取当前消息图片和引用消息里的图片
+- 默认优先传 `http/https` 图片链接
 - 默认一次最多 4 张图片
 - 默认单张图片最大 20MB
-- 缓存会按 `cache_retention_minutes` 清理
+- 回退生成的本机缓存会按 `cache_retention_minutes` 清理
 - 如果需要把处理结果发回 QQ，让 Codex/Claude 保存文件后执行 `qqsend <路径>`
 
 ## 文件发送

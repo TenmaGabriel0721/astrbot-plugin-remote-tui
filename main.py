@@ -60,7 +60,7 @@ class RemoteTuiCommandFilter(CustomFilter):
         return False
 
 
-@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.4.1")
+@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.4.2")
 class RemoteTuiPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
