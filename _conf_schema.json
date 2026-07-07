@@ -115,13 +115,13 @@
     "type": "string",
     "description": "渲染字体路径",
     "default": "",
-    "hint": "主终端字体，建议使用英文等宽字体；留空时自动搜索"
+    "hint": "主终端字体，建议使用英文等宽字体；留空时优先使用插件内置 NotoSansMono"
   },
   "cjk_font_path": {
     "type": "string",
     "description": "中文 fallback 字体路径",
     "default": "",
-    "hint": "中文内容和底部菜单使用；留空时自动搜索 Noto CJK / 文泉驿"
+    "hint": "中文内容和底部菜单使用；留空时优先使用插件内置 wqy-zenhei"
   },
   "font_size": {
     "type": "int",

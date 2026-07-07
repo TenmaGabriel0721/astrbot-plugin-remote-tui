@@ -18,6 +18,7 @@ DEFAULT_FG: RGB = (218, 224, 231)
 DEFAULT_BG: RGB = (12, 16, 22)
 FOOTER_BG: RGB = (20, 27, 36)
 FOOTER_BORDER: RGB = (58, 70, 86)
+BUNDLED_FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 
 ANSI_16: list[RGB] = [
     (0, 0, 0),
@@ -199,6 +200,7 @@ class TerminalRenderer:
     def _find_font(self, configured: str = "") -> str:
         candidates = [
             configured,
+            str(BUNDLED_FONT_DIR / "NotoSansMono-Regular.ttf"),
             "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
             "/usr/share/fonts/truetype/noto/NotoSansMonoCJK-Regular.ttc",
@@ -214,6 +216,7 @@ class TerminalRenderer:
     def _find_cjk_font(self, configured: str = "") -> str:
         candidates = [
             configured,
+            str(BUNDLED_FONT_DIR / "wqy-zenhei.ttc"),
             "/usr/share/fonts/truetype/noto/NotoSansMonoCJK-Regular.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
@@ -236,6 +239,7 @@ class TerminalRenderer:
             candidates.append(path.with_name(path.name.replace("Mono.ttf", "Mono-Bold.ttf")))
         candidates.extend(
             [
+                BUNDLED_FONT_DIR / "NotoSansMono-Bold.ttf",
                 Path("/usr/share/fonts/truetype/noto/NotoSansMono-Bold.ttf"),
                 Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"),
             ],

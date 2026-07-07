@@ -2,18 +2,68 @@
 
 通过 OneBot 文本指令远程控制本机 Codex / Claude Code TUI，会话画面以图片返回。
 
-## 必要依赖
+## 安装
 
-Python 依赖由 AstrBot 读取 `requirements.txt` 安装：
+在 AstrBot 插件目录安装：
+
+```bash
+cd /root/AstrBot/data/plugins
+git clone https://github.com/TenmaGabriel0721/astrbot-plugin-remote-tui.git astrbot_plugin_remote_tui
+```
+
+然后在 AstrBot 后台重载插件，或重启 AstrBot。
+
+Python 依赖由 AstrBot 读取 `requirements.txt` 自动安装：
 
 - `Pillow`
 - `wcwidth`
 
-系统依赖需要在 AstrBot 运行环境里手动安装：
+插件已内置截图字体：
+
+- `NotoSansMono-Regular.ttf`
+- `NotoSansMono-Bold.ttf`
+- `wqy-zenhei.ttc`
+
+一般不需要额外安装中文字体。字体许可证见 `assets/fonts/licenses/`。
+
+## 系统依赖
+
+必须在 AstrBot 运行环境里安装：
 
 - `tmux`
-- `codex`
-- `claude`
+- `codex` 或 `claude`
+
+`tmux` 安装示例：
+
+```bash
+# Debian / Ubuntu
+sudo apt update
+sudo apt install -y tmux
+
+# CentOS / RHEL / Rocky / AlmaLinux
+sudo dnf install -y tmux
+
+# 旧版 CentOS
+sudo yum install -y tmux
+
+# Arch Linux
+sudo pacman -S tmux
+
+# Alpine Linux
+sudo apk add tmux
+
+# macOS
+brew install tmux
+```
+
+如果 AstrBot 跑在 Docker 容器里，需要在容器内安装 `tmux`，或者把安装命令写进镜像构建流程。
+
+Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。插件默认会自动查找：
+
+- `/root/.local/bin`
+- `/root/.cargo/bin`
+- `/root/.npm-global/bin`
+- `/root/.nvm/versions/node/*/bin`
 
 `tmux` 是必要运行时依赖，不可用时插件不会启动 TUI，会返回图片错误提示。可以通过后台配置 `tmux_path` 指定 tmux 的绝对路径。
 
@@ -54,6 +104,35 @@ qqsend ./output
 - 默认单文件最大 50MB
 - 默认目录打包最大 100MB
 - 默认一次最多发送 10 个路径
+
+## 常见问题
+
+### 启动后立即退出
+
+确认 `codex` / `claude` 在 AstrBot 所在用户下能直接运行，并且已经登录。
+
+### 工作目录不对
+
+设置 `default_cwd`，默认是 `/root`。插件启动 TUI 时会显式 `cd` 到这个目录。
+
+### `qqsend: command not found`
+
+重载插件后重新启动 TUI 会话：
+
+```text
+/t stop
+/t codex
+```
+
+插件也会把 `qqsend` 安装到 `~/.local/bin/qqsend` 兼容旧会话。
+
+### 截图字体不好读
+
+默认使用内置字体。仍不满意时可以在配置里指定：
+
+- `font_path`
+- `cjk_font_path`
+- `font_size`
 
 ## 截图等待
 
