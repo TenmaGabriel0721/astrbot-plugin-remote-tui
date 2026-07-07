@@ -5,6 +5,7 @@
 ### Added
 
 - Added `remote_tui_run` LLM tool so AstrBot can delegate tasks to Codex / Claude Code through Remote TUI.
+- Added `remote_tui_key` LLM tool so AstrBot can inspect and operate TUI menus with capture/up/down/enter/esc/etc.
 - Added LLM tool configuration:
   - `llm_tool_enabled`
   - `llm_tool_default_app`

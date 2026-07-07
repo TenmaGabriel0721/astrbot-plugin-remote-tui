@@ -13,7 +13,7 @@ from astrbot.core.star.filter.custom_filter import CustomFilter
 
 from .core.file_sender import FileSendError, FileSender
 from .core.input_images import InputImageCache, InputImageError
-from .core.keymap import parse_payload
+from .core.keymap import KEY_ACTIONS, parse_payload
 from .core.menu import MenuContext, build_error_lines, build_footer
 from .core.permissions import PermissionChecker
 from .core.renderer import TerminalRenderer
@@ -179,10 +179,7 @@ class RemoteTuiPlugin(Star):
                 baseline = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
                 state = classify_interactive(baseline)
                 if state.kind in {"menu", "permission"}:
-                    return (
-                        f"{self._app_display(info.app)} 当前处于{state.reason or '交互菜单'}，"
-                        f"请先用 {TRIGGER} 刷新查看，并用 {TRIGGER} up/down/enter/esc 处理后再调用工具。"
-                    )
+                    return self._build_interactive_tool_result(info, baseline, state.reason)
                 text_to_send = self.file_sender.with_usage_hint(task)
                 await self.backend.send_text(
                     info.session_name,
@@ -203,6 +200,59 @@ class RemoteTuiPlugin(Star):
             except Exception as exc:
                 logger.exception("Remote TUI LLM 工具执行失败: %s", exc)
                 return f"Remote TUI LLM 工具执行失败：{exc}"
+
+    @filter.llm_tool("remote_tui_key")
+    async def remote_tui_key(self, event: AstrMessageEvent, key: str, app: str = "current"):
+        """
+        控制当前 Codex 或 Claude Code TUI 菜单，并返回终端文本结果。
+
+        适用场景：remote_tui_run 返回当前处于 /model、/resume、权限确认、选择列表或其他交互菜单时，用本工具发送方向键、Enter、Esc 或刷新画面。
+        注意：只有在明确需要确认当前高亮项或权限请求时才发送 enter；不要在看不清菜单含义时盲目确认。
+
+        Args:
+            key(string): 控制动作，支持 capture、up、down、left、right、enter、esc、tab、pgup、pgdn、ctrlc。
+            app(string): 使用哪个 TUI，会话可选值为 current、codex、claude。current 表示当前活动会话。
+        """
+        if not self.llm_tool_enabled:
+            return "Remote TUI LLM 工具未启用。"
+
+        event = self._resolve_llm_tool_event(event)
+        if event is None:
+            return "无法从工具上下文识别消息事件。"
+
+        permission = self.permission.check_event(event)
+        if not permission.allowed:
+            return f"权限不足：{permission.reason}"
+
+        if not await self.backend.available():
+            return "tmux 不可用，请安装 tmux 并确认 AstrBot 运行环境可以执行 tmux。"
+
+        normalized_key = self._normalize_llm_key(key)
+        if not normalized_key:
+            return "key 只允许为 capture、up、down、left、right、enter、esc、tab、pgup、pgdn、ctrlc。"
+
+        user_key = self.sessions.user_key_from_event(event)
+        lock = self._locks.setdefault(user_key, asyncio.Lock())
+        async with lock:
+            try:
+                info = await self._resolve_tool_session(user_key, app, allow_start=False)
+                if normalized_key == "capture":
+                    text = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
+                    state = classify_interactive(text)
+                    result = WaitResult(text=text, reason=state.reason or "运行中")
+                else:
+                    await self.backend.send_key(info.session_name, normalized_key)
+                    self.sessions.touch(user_key, info.app)
+                    result = await self._wait_for_screen(
+                        info,
+                        self.control_wait_timeout,
+                        min_wait=self.action_delay,
+                    )
+                files_sent = await self._send_pending_files(event, info)
+                return self._build_tool_result(info, result, files_sent)
+            except Exception as exc:
+                logger.exception("Remote TUI LLM 控制工具执行失败: %s", exc)
+                return f"Remote TUI LLM 控制工具执行失败：{exc}"
 
     async def _handle(self, event: AstrMessageEvent, user_key: str, payload: str) -> Path | list[Any]:
         permission = self.permission.check_event(event)
@@ -337,12 +387,14 @@ class RemoteTuiPlugin(Star):
 
         return self._render_screen(info, ansi_text, "运行中")
 
-    async def _resolve_tool_session(self, user_key: str, app: str) -> SessionInfo:
+    async def _resolve_tool_session(self, user_key: str, app: str, allow_start: bool = True) -> SessionInfo:
         requested = self._normalize_app(app)
         if requested in {"", "current"}:
             current = await self.sessions.current(user_key)
             if current is not None and current.running:
                 return current
+            if not allow_start:
+                raise ValueError("没有正在运行的当前 TUI 会话")
             requested = self.llm_tool_default_app or "codex"
 
         if requested not in {"codex", "claude"}:
@@ -350,6 +402,8 @@ class RemoteTuiPlugin(Star):
 
         session_name = self.sessions.session_name(user_key, requested)
         was_running = await self.backend.has_session(session_name)
+        if not was_running and not allow_start:
+            raise ValueError(f"{self._app_display(requested)} 会话未运行")
         info = await self.sessions.start_or_switch(user_key, requested)
         if not was_running:
             await self._wait_for_screen(info, self.start_wait_timeout, min_wait=self.action_delay)
@@ -398,6 +452,16 @@ class RemoteTuiPlugin(Star):
         if len(text) <= self.llm_tool_max_result_chars:
             return text
         return f"...<已截断，保留末尾 {self.llm_tool_max_result_chars} 字符>\n{text[-self.llm_tool_max_result_chars:]}"
+
+    def _build_interactive_tool_result(self, info: SessionInfo, ansi_text: str, reason: str) -> str:
+        lines = [
+            f"{self._app_display(info.app)} 当前处于{reason or '交互状态'}，未发送新任务。",
+            "可调用 remote_tui_key 用 capture/up/down/enter/esc/tab 等操作菜单或确认权限。",
+        ]
+        terminal_text = self._terminal_text_for_tool(ansi_text)
+        if terminal_text:
+            lines.extend(["", "终端输出：", terminal_text])
+        return "\n".join(lines)
 
     async def _wait_for_screen(
         self,
@@ -489,6 +553,25 @@ class RemoteTuiPlugin(Star):
             candidates.append(getattr(inner_context, "event", None))
             candidates.append(getattr(candidate, "event", None))
         return None
+
+    @staticmethod
+    def _normalize_llm_key(value: str) -> str:
+        text = str(value or "").strip().lower().replace("_", "-").replace(" ", "")
+        aliases = {
+            "capture": "capture",
+            "refresh": "capture",
+            "screen": "capture",
+            "screenshot": "capture",
+            "escape": "esc",
+            "ctrl-c": "ctrlc",
+            "ctrl-cancel": "ctrlc",
+            "pageup": "pgup",
+            "pagedown": "pgdn",
+        }
+        text = aliases.get(text, text)
+        if text == "capture":
+            return text
+        return KEY_ACTIONS.get(text, "")
 
     def _build_file_response(self, targets: list[str]) -> list[Any]:
         prepared = self.file_sender.prepare(targets)

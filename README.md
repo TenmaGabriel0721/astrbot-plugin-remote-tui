@@ -143,9 +143,9 @@ qqsend ./output
 
 ## LLM 工具
 
-插件会注册 LLM 工具 `remote_tui_run`，让 AstrBot 的主 LLM 可以把开发任务委派给 Codex / Claude Code TUI。
+插件会注册 LLM 工具，让 AstrBot 的主 LLM 可以把开发任务委派给 Codex / Claude Code TUI。
 
-工具参数：
+### `remote_tui_run`
 
 - `prompt`：发送给 Codex/Claude Code 的完整任务说明
 - `app`：`current`、`codex` 或 `claude`，默认 `current`
@@ -155,9 +155,19 @@ qqsend ./output
 - `current` 会优先使用当前用户的活动 TUI 会话
 - 没有活动会话时，按 `llm_tool_default_app` 启动默认 TUI
 - 工具返回终端纯文本结果给主 LLM，不发送截图
-- 如果当前 TUI 停在 `/model`、`/resume` 或其他菜单，工具不会把任务粘进去，会要求先手动处理菜单
+- 如果当前 TUI 停在 `/model`、`/resume` 或其他菜单，工具不会把任务粘进去，会返回终端文本让主 LLM 调用 `remote_tui_key` 处理
 - 如果 Codex/Claude 在会话里执行 `qqsend <路径>`，工具会尝试直接把文件发回当前 QQ 会话
 - 工具仍会检查本插件权限，默认只允许管理员或配置放行的用户实际执行
+
+### `remote_tui_key`
+
+- `key`：`capture`、`up`、`down`、`left`、`right`、`enter`、`esc`、`tab`、`pgup`、`pgdn`、`ctrlc`
+- `app`：`current`、`codex` 或 `claude`，默认 `current`
+
+用于让主 LLM 自己处理 TUI 菜单：
+
+- `/model`、`/resume`、历史会话选择、模型选择：先 `capture` 读取菜单，再按 `up/down/enter/esc`
+- 权限请求：开启 `auto_confirm_permissions` 时 `remote_tui_run` 会自动确认；未开启时主 LLM 可在确认当前画面确实是权限请求后调用 `remote_tui_key key=enter`
 
 相关配置：
 
