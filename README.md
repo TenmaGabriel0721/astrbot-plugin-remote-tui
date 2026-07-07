@@ -73,10 +73,39 @@ Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。
 - `/t codex`：启动或切换 Codex
 - `/t claude`：启动或切换 Claude Code
 - `/t 内容`：发送内容并自动回车
+- `图片 + /t 内容`：缓存 QQ 图片，并把本机图片路径发给当前 Codex/Claude
 - `/t up`、`/t down`、`/t enter`、`/t esc`：控制 TUI 菜单
 - `/t send /root/a.png`：直接发送本机文件或目录
 - `/t 把 /root/a.png 发出来`：直接发送本机文件或目录
 - `/t left`、`/t right`、`/t tab`、`/t pgup`、`/t pgdn`、`/t ctrlc`、`/t stop`：高级控制
+
+## 图片输入
+
+插件支持把 QQ 消息里的图片临时缓存到服务器本机，再把图片路径追加到发给 Codex / Claude Code 的内容里。
+
+用法：
+
+```text
+发送图片，并附带：/t 分析这张图
+发送图片，并附带：/t 根据这张图生成 HTML 页面
+发送图片，并附带：/t
+```
+
+插件发给 TUI 的内容会包含类似路径：
+
+```text
+/root/AstrBot/data/plugin_data/astrbot_plugin_remote_tui/uploads/input_...png
+```
+
+说明：
+
+- 这不是 OneBot 按钮或原生图片附件，而是本机文件路径
+- Codex/Claude 需要能读取该路径
+- 默认读取当前消息图片和引用消息里的图片
+- 默认一次最多 4 张图片
+- 默认单张图片最大 20MB
+- 缓存会按 `cache_retention_minutes` 清理
+- 如果需要把处理结果发回 QQ，让 Codex/Claude 保存文件后执行 `qqsend <路径>`
 
 ## 文件发送
 

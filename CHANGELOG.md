@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.0 - 2026-07-07
+
+### Added
+
+- Added QQ image input caching for `/t` messages.
+- Added support for direct image messages and quoted image messages.
+- Added prompt injection with cached local image paths for Codex / Claude Code.
+- Added image input configuration:
+  - `image_input_enabled`
+  - `image_input_include_replies`
+  - `image_input_max_images`
+  - `image_input_max_file_size_mb`
+
+### Changed
+
+- `/t` with images and no text now sends a default image-inspection request to the active TUI session.
+- Cached input images are cleaned up with the plugin cache retention policy.
+- Plugin metadata version updated to `v0.4.0`.
+
 ## v0.3.0 - 2026-07-07
 
 ### Added

@@ -12,6 +12,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.core.star.filter.custom_filter import CustomFilter
 
 from .core.file_sender import FileSendError, FileSender
+from .core.input_images import InputImageCache, InputImageError
 from .core.keymap import parse_payload
 from .core.menu import MenuContext, build_error_lines, build_footer
 from .core.permissions import PermissionChecker
@@ -59,7 +60,7 @@ class RemoteTuiCommandFilter(CustomFilter):
         return False
 
 
-@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.3.0")
+@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.4.0")
 class RemoteTuiPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -82,6 +83,7 @@ class RemoteTuiPlugin(Star):
         self.backend = TmuxBackend(self.tmux_path)
         self.sessions = SessionManager(self.config, self.data_dir, self.backend)
         self.file_sender = FileSender(self.config, self.data_dir, self.sessions.cwd)
+        self.input_images = InputImageCache(self.config, self.data_dir)
         self.renderer = TerminalRenderer(
             self.cache_dir,
             font_path=str(self.config.get("font_path", "") or ""),
@@ -119,6 +121,8 @@ class RemoteTuiPlugin(Star):
                 result = await self._handle(event, user_key, payload)
             except FileSendError as exc:
                 result = self._render_error("文件发送失败", str(exc))
+            except InputImageError as exc:
+                result = self._render_error("输入图片处理失败", str(exc))
             except Exception as exc:
                 logger.exception("Remote TUI 处理失败: %s", exc)
                 result = self._render_error("Remote TUI 处理失败", str(exc))
@@ -138,6 +142,9 @@ class RemoteTuiPlugin(Star):
             return self._build_file_response(direct_targets)
 
         action = parse_payload(payload)
+        input_images = []
+        if action.kind in {"text", "refresh"}:
+            input_images = await self.input_images.cache_from_event(event)
 
         if not await self.backend.available():
             return self._render_error(
@@ -162,11 +169,36 @@ class RemoteTuiPlugin(Star):
             return self._render_screen(info, result.text, self._status_from_wait(result))
 
         if action.kind == "text":
-            if not action.value:
+            if not action.value and not input_images:
                 return await self._render_capture(user_key)
             info = await self.sessions.require_current(user_key)
             baseline = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
-            text_to_send = self.file_sender.with_usage_hint(action.value)
+            prompt = action.value or "请查看随消息上传的图片。"
+            text_to_send = self.file_sender.with_usage_hint(prompt)
+            text_to_send = self.input_images.build_prompt(text_to_send, input_images)
+            await self.backend.send_text(
+                info.session_name,
+                text_to_send,
+                submit=True,
+                submit_delay_seconds=self.submit_delay,
+            )
+            self.sessions.touch(user_key, info.app)
+            result = await self._wait_for_screen(
+                info,
+                self.submit_wait_timeout,
+                min_wait=max(self.action_delay, 1.0),
+                initial_text=baseline,
+                require_change=True,
+            )
+            pending = self._pending_file_response(info)
+            if pending:
+                return pending
+            return self._render_screen(info, result.text, self._status_from_wait(result))
+
+        if action.kind == "refresh" and input_images:
+            info = await self.sessions.require_current(user_key)
+            baseline = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
+            text_to_send = self.input_images.build_prompt("请查看随消息上传的图片。", input_images)
             await self.backend.send_text(
                 info.session_name,
                 text_to_send,
@@ -296,6 +328,7 @@ class RemoteTuiPlugin(Star):
                 await asyncio.sleep(60)
                 self._cleanup_cache()
                 self.file_sender.cleanup_outgoing(self.cache_retention_minutes)
+                self.input_images.cleanup(self.cache_retention_minutes)
                 await self.sessions.cleanup_idle(self.idle_timeout_minutes)
             except asyncio.CancelledError:
                 raise

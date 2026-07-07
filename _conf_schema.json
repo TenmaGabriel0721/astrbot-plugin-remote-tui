@@ -186,6 +186,27 @@
     "default": true,
     "hint": "用于兼容已经启动的旧 tmux 会话；如果已有同名非 Remote TUI 脚本则不会覆盖"
   },
+  "image_input_enabled": {
+    "type": "bool",
+    "description": "启用 QQ 图片输入缓存",
+    "default": true,
+    "hint": "启用后 /t 内容 携带图片时，插件会先缓存图片并把本机路径发给 Codex/Claude"
+  },
+  "image_input_include_replies": {
+    "type": "bool",
+    "description": "读取引用消息中的图片",
+    "default": true
+  },
+  "image_input_max_images": {
+    "type": "int",
+    "description": "单次最多缓存的输入图片数量",
+    "default": 4
+  },
+  "image_input_max_file_size_mb": {
+    "type": "int",
+    "description": "单张输入图片最大大小 MB",
+    "default": 20
+  },
   "kill_sessions_on_unload": {
     "type": "bool",
     "description": "插件卸载或禁用时停止 tmux 会话",
