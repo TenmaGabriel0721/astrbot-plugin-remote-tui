@@ -73,10 +73,10 @@ class InputImageCache:
             return text
 
         paths = [image.value for image in images]
-        result = text.strip()
+        result = " ".join(text.split())
         if result:
-            return f"{result}\n{chr(10).join(paths)}"
-        return "\n".join(paths)
+            return " ".join([result, *paths])
+        return " ".join(paths)
 
     def cleanup(self, retention_minutes: int) -> None:
         cutoff = time.time() - max(1, retention_minutes) * 60

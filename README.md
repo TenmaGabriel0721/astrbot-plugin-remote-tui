@@ -91,18 +91,16 @@ Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。
 发送图片，并附带：/t
 ```
 
-插件发给 TUI 的内容就是原消息加图片地址。默认优先使用 OneBot 图片里的 `http/https` 链接；没有可用链接时，才下载缓存成本机完整绝对路径：
+插件发给 TUI 的内容就是原消息加图片地址，全部放在同一行。默认优先使用 OneBot 图片里的 `http/https` 链接；没有可用链接时，才下载缓存成本机完整绝对路径：
 
 ```text
-分析这张图
-https://example.com/qq-image.jpg
+分析这张图 https://example.com/qq-image.jpg
 ```
 
 或：
 
 ```text
-分析这张图
-/root/AstrBot/data/plugin_data/astrbot_plugin_remote_tui/uploads/input_...png
+分析这张图 /root/AstrBot/data/plugin_data/astrbot_plugin_remote_tui/uploads/input_...png
 ```
 
 说明：

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.3 - 2026-07-07
+
+### Changed
+
+- Image input prompt output now keeps the user message and image URL/path on one line, with whitespace normalized.
+- This avoids some TUI clients treating the image URL/path as a second submitted message.
+- Plugin metadata version updated to `v0.4.3`.
+
 ## v0.4.2 - 2026-07-07
 
 ### Added
