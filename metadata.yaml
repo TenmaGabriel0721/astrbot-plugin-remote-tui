@@ -2,6 +2,6 @@ name: astrbot_plugin_remote_tui
 display_name: Remote TUI
 desc: 通过 OneBot 文本指令远程控制 Codex / Claude Code TUI，会话画面以图片返回，并支持发送本机文件和缓存输入图片
 help: 使用 /t、/t codex、/t claude、/t 内容、图片+/t 内容、/t up、/t down、/t enter、/t esc、/t send <路径>
-version: v0.4.0
+version: v0.4.1
 author: TenmaGabriel0721
 repo: "https://github.com/TenmaGabriel0721/astrbot-plugin-remote-tui"

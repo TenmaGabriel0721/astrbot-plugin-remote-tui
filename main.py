@@ -60,7 +60,7 @@ class RemoteTuiCommandFilter(CustomFilter):
         return False
 
 
-@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.4.0")
+@register(PLUGIN_NAME, "TenmaGabriel0721", "远程控制 Codex / Claude Code TUI，会话画面以图片返回", "v0.4.1")
 class RemoteTuiPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -173,8 +173,9 @@ class RemoteTuiPlugin(Star):
                 return await self._render_capture(user_key)
             info = await self.sessions.require_current(user_key)
             baseline = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
-            prompt = action.value or "请查看随消息上传的图片。"
-            text_to_send = self.file_sender.with_usage_hint(prompt)
+            text_to_send = action.value
+            if not input_images:
+                text_to_send = self.file_sender.with_usage_hint(text_to_send)
             text_to_send = self.input_images.build_prompt(text_to_send, input_images)
             await self.backend.send_text(
                 info.session_name,
@@ -198,7 +199,7 @@ class RemoteTuiPlugin(Star):
         if action.kind == "refresh" and input_images:
             info = await self.sessions.require_current(user_key)
             baseline = await self.backend.capture(info.session_name, self.sessions.cols, self.sessions.rows)
-            text_to_send = self.input_images.build_prompt("请查看随消息上传的图片。", input_images)
+            text_to_send = self.input_images.build_prompt("", input_images)
             await self.backend.send_text(
                 info.session_name,
                 text_to_send,

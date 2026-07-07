@@ -91,9 +91,10 @@ Codex / Claude Code 需要先在同一个系统用户下安装并完成登录。
 发送图片，并附带：/t
 ```
 
-插件发给 TUI 的内容会包含类似路径：
+插件发给 TUI 的内容就是原消息加本机图片完整绝对路径：
 
 ```text
+分析这张图
 /root/AstrBot/data/plugin_data/astrbot_plugin_remote_tui/uploads/input_...png
 ```
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.1 - 2026-07-07
+
+### Changed
+
+- Simplified image input prompts: the terminal now receives only the user message plus cached absolute image path lines.
+- Image messages without text now send only the cached image path.
+
 ## v0.4.0 - 2026-07-07
 
 ### Added

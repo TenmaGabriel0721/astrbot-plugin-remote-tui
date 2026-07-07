@@ -39,7 +39,7 @@ class InputImageCache:
         self.include_replies = bool(config.get("image_input_include_replies", True))
         self.max_images = max(1, int(config.get("image_input_max_images", 4) or 4))
         self.max_file_size = max(1, int(config.get("image_input_max_file_size_mb", 20) or 20)) * 1024 * 1024
-        self.upload_dir = Path(data_dir) / "uploads"
+        self.upload_dir = (Path(data_dir) / "uploads").expanduser().resolve(strict=False)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
     async def cache_from_event(self, event: Any) -> list[CachedInputImage]:
@@ -65,21 +65,11 @@ class InputImageCache:
         if not images:
             return text
 
-        lines = [
-            "",
-            "",
-            "[Remote TUI image input]",
-            f"用户随消息上传了 {len(images)} 张图片，插件已临时缓存为本机文件路径：",
-        ]
-        for index, image in enumerate(images, start=1):
-            lines.append(f"{index}. {image.path}")
-        lines.extend(
-            [
-                "请按用户要求读取这些图片；不要尝试访问 QQ 图片 URL。",
-                "如果需要把处理结果发回 QQ，请保存文件后执行 qqsend <路径>。",
-            ],
-        )
-        return f"{text.rstrip()}{chr(10).join(lines)}"
+        paths = [str(image.path.expanduser().resolve(strict=False)) for image in images]
+        result = text.strip()
+        if result:
+            return f"{result}\n{chr(10).join(paths)}"
+        return "\n".join(paths)
 
     def cleanup(self, retention_minutes: int) -> None:
         cutoff = time.time() - max(1, retention_minutes) * 60
