@@ -102,6 +102,7 @@ class FileSender:
         )
         self.max_archive_files = max(1, int(config.get("file_send_max_archive_files", 500) or 500))
         self.append_hint = bool(config.get("file_send_append_hint", True))
+        self.install_user_bin = bool(config.get("file_send_install_user_bin", True))
 
         self.tool_dir.mkdir(parents=True, exist_ok=True)
         self.queue_dir.mkdir(parents=True, exist_ok=True)
@@ -109,10 +110,15 @@ class FileSender:
         self.install_cli()
 
     def install_cli(self) -> None:
+        source = self._cli_source(str(self.queue_dir))
         script = self.tool_dir / "qqsend"
-        script.write_text(self._cli_source(), encoding="utf-8")
-        current_mode = script.stat().st_mode
-        script.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        self._write_executable(script, source)
+
+        if self.install_user_bin:
+            user_script = Path.home() / ".local" / "bin" / "qqsend"
+            if not user_script.exists() or self._is_remote_tui_script(user_script):
+                user_script.parent.mkdir(parents=True, exist_ok=True)
+                self._write_executable(user_script, source)
 
     def extract_direct_targets(self, payload: str) -> list[str]:
         if not self.enabled:
@@ -176,9 +182,11 @@ class FileSender:
                     continue
                 if data.get("session_name") != session_name:
                     continue
-                if data.get("user_key") != user_key:
+                data_user_key = str(data.get("user_key") or "").strip()
+                if data_user_key and data_user_key != user_key:
                     continue
-                if data.get("app") != app:
+                data_app = str(data.get("app") or "").strip()
+                if data_app and data_app != app:
                     continue
                 path = str(data.get("path") or "").strip()
                 if path:
@@ -399,24 +407,73 @@ class FileSender:
         return f"{size} B"
 
     @staticmethod
-    def _cli_source() -> str:
-        return """#!/usr/bin/env python3
+    def _write_executable(path: Path, source: str) -> None:
+        path.write_text(source, encoding="utf-8")
+        current_mode = path.stat().st_mode
+        path.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    @staticmethod
+    def _is_remote_tui_script(path: Path) -> bool:
+        try:
+            return "Remote TUI" in path.read_text(encoding="utf-8", errors="ignore")[:4096]
+        except OSError:
+            return False
+
+    @staticmethod
+    def _cli_source(default_queue_dir: str) -> str:
+        source = """#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
 
 
+DEFAULT_QUEUE_DIR = __DEFAULT_QUEUE_DIR__
+
+
+def _tmux_session_name() -> str:
+    pane = os.environ.get("TMUX_PANE", "").strip()
+    if not pane:
+        return ""
+    try:
+        proc = subprocess.run(
+            ["tmux", "display-message", "-p", "-t", pane, "#{session_name}"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+            check=False,
+        )
+    except Exception:
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
+
+
+def _app_from_session(session_name: str) -> str:
+    if session_name.endswith("_codex"):
+        return "codex"
+    if session_name.endswith("_claude"):
+        return "claude"
+    return ""
+
+
 def main() -> int:
-    queue_dir = os.environ.get("REMOTE_TUI_QUEUE_DIR", "").strip()
+    queue_dir = os.environ.get("REMOTE_TUI_QUEUE_DIR", "").strip() or DEFAULT_QUEUE_DIR
     session_name = os.environ.get("REMOTE_TUI_SESSION_NAME", "").strip()
     user_key = os.environ.get("REMOTE_TUI_USER_KEY", "").strip()
     app = os.environ.get("REMOTE_TUI_APP", "").strip()
-    if not queue_dir or not session_name or not user_key or not app:
+    if not session_name:
+        session_name = _tmux_session_name()
+    if not app:
+        app = _app_from_session(session_name)
+    if not queue_dir or not session_name or not app:
         print("[Remote TUI] qqsend 只能在 Remote TUI 的 Codex/Claude 会话中使用。", file=sys.stderr)
         return 2
     if len(sys.argv) < 2:
@@ -451,3 +508,4 @@ def main() -> int:
 if __name__ == "__main__":
     raise SystemExit(main())
 """
+        return source.replace("__DEFAULT_QUEUE_DIR__", json.dumps(default_queue_dir))

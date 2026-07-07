@@ -180,6 +180,12 @@
     "description": "遇到发送文件意图时给 Codex/Claude 附加 qqsend 使用提示",
     "default": true
   },
+  "file_send_install_user_bin": {
+    "type": "bool",
+    "description": "同时把 qqsend 安装到 ~/.local/bin",
+    "default": true,
+    "hint": "用于兼容已经启动的旧 tmux 会话；如果已有同名非 Remote TUI 脚本则不会覆盖"
+  },
   "kill_sessions_on_unload": {
     "type": "bool",
     "description": "插件卸载或禁用时停止 tmux 会话",

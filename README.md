@@ -44,6 +44,8 @@ qqsend ./output
 - `/t send <路径>` 和 `/t 把 <路径> 发出来` 不经过 TUI，直接发送
 - 如果普通 TUI 请求里包含“发出来/发送”等意图，插件会给 Codex/Claude 附加 `qqsend` 用法提示
 - Codex/Claude 执行 `qqsend` 后，插件会在本次回复或下次 `/t` 刷新时发送文件
+- 插件会同时把 `qqsend` 安装到 `~/.local/bin`，用于兼容旧 tmux 会话
+- 如果 Codex/Claude 提示 `qqsend: command not found`，请重载插件后 `/t stop` 再 `/t codex` 或 `/t claude`
 
 安全限制：
 
